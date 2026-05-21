@@ -1,62 +1,79 @@
-import { stdin, stdout } from 'node:process'
-import { createInterface } from 'node:readline/promises'
+import { ProcessTerminal, TUI } from '@earendil-works/pi-tui'
 
 import { attachStateHooks } from './agent/attachStateHooks.js'
 import { createKurisuAgent } from './agent/createAgent.js'
 import { assertApiKey } from './config/env.js'
+import { ChatPane } from './ui/ChatPane.js'
+import { Header } from './ui/Header.js'
+import { InputBar } from './ui/InputBar.js'
+import { composeAmadeusLayout } from './ui/layout.js'
+
+const CLOCK_TICK_MS = 60_000
 
 async function main(): Promise<void> {
   assertApiKey()
 
+  const terminal = new ProcessTerminal()
+  const tui = new TUI(terminal, true)
   const agent = createKurisuAgent()
-  const detach = attachStateHooks(agent)
-
-  const rl = createInterface({ input: stdin, output: stdout })
+  const header = new Header('companion', 'idle')
+  const chatPane = new ChatPane()
 
   let exiting = false
+  let clockTimer: NodeJS.Timeout | undefined
+  let detachHooks: (() => void) | undefined
+
   const shutdown = async (code: number): Promise<void> => {
     if (exiting) {
       return
     }
     exiting = true
+    if (clockTimer !== undefined) {
+      clearInterval(clockTimer)
+    }
     agent.abort()
-    detach()
-    rl.close()
+    detachHooks?.()
+    tui.stop()
     await agent.waitForIdle().catch(() => {})
     process.exit(code)
   }
-  process.on('SIGINT', () => { void shutdown(0) })
-  process.on('SIGTERM', () => { void shutdown(0) })
 
-  process.stdout.write('AMADEUS — El Psy Kongroo. Type /quit or Ctrl+C to exit.\n\n')
-
-  while (!exiting) {
-    let line: string
+  const inputBar = new InputBar(tui, async (text) => {
+    if (text === '/quit' || text === '/exit') {
+      void shutdown(0)
+      return
+    }
+    chatPane.appendUserTurn(text)
+    header.setStatus('thinking')
+    tui.requestRender()
     try {
-      line = await rl.question('> ')
-    }
-    catch {
-      break
-    }
-
-    const trimmed = line.trim()
-    if (trimmed === '') {
-      continue
-    }
-    if (trimmed === '/quit') {
-      break
-    }
-
-    try {
-      await agent.prompt(trimmed)
+      await agent.prompt(text)
     }
     catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      process.stderr.write(`[error] ${message}\n`)
+      chatPane.appendSystemNotice(`prompt error: ${message}`)
+      header.setStatus('error')
+      tui.requestRender()
     }
-  }
+  })
 
-  await shutdown(0)
+  detachHooks = attachStateHooks(agent, { chatPane, header, tui })
+
+  tui.addChild(composeAmadeusLayout(header, chatPane, inputBar))
+  tui.setFocus(inputBar)
+
+  chatPane.appendSystemNotice('AMADEUS — El Psy Kongroo. `/quit` para salir.')
+
+  tui.start()
+  tui.requestRender()
+
+  clockTimer = setInterval(() => {
+    header.tick()
+    tui.requestRender()
+  }, CLOCK_TICK_MS)
+
+  process.on('SIGINT', () => { void shutdown(0) })
+  process.on('SIGTERM', () => { void shutdown(0) })
 }
 
 main().catch((error: unknown) => {

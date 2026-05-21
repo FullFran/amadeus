@@ -1,56 +1,44 @@
 import type { Agent, AgentEvent, AgentMessage } from '@earendil-works/pi-agent-core'
 import type { AssistantMessage } from '@earendil-works/pi-ai'
+import type { TUI } from '@earendil-works/pi-tui'
 
 import { parseAmadeusState } from '@amadeus/contracts'
-import { sanitizeResponse } from '@amadeus/character'
+
+import type { ChatPane } from '../ui/ChatPane.js'
+import type { Header } from '../ui/Header.js'
 
 import { extractAssistantText } from './extractAssistantText.js'
 
-const TICKER_INTERVAL_MS = 1500
 const DEBUG = process.env.AMADEUS_DEBUG === '1'
+
+export interface StateHookTargets {
+  chatPane: ChatPane
+  header: Header
+  tui: TUI
+}
 
 function isAssistantMessage(message: AgentMessage): message is AssistantMessage {
   return 'role' in message && message.role === 'assistant'
 }
 
 /**
- * WP4 prove-of-life output:
- * - on `message_start` (assistant only): prints `[Kurisu thinking` and starts a
- *   dot ticker so the user sees the run is alive even when the provider takes
- *   tens of seconds (Kimi K2.6 and other reasoning models do this often).
- * - on the first non-empty `message_update`: stops the ticker and writes
- *   `[receiving...]` so the user knows text is on the wire. The text itself
- *   stays buffered until `message_end` to avoid leaking the protocol block
- *   prefix (e.g. a leading ```xml fence).
- * - on `message_end` (assistant only): prints the SANITIZED full reply and
- *   logs the parsed `<amadeus_state>` to stderr. Surfaces provider errors
- *   and aborted runs explicitly so they don't look like a hang.
+ * Drives the WP5 TUI from the agent's lifecycle events:
  *
- * Set `AMADEUS_DEBUG=1` to log every agent event to stderr — useful when the
- * provider hangs or the assistant message comes back empty.
+ *   message_start (assistant) → opens a streaming turn in the ChatPane,
+ *                               flips Header.status to 'streaming'
+ *   message_update            → updates the active turn's text live (the
+ *                               Markdown component re-renders incrementally)
+ *   message_end (assistant)   → finalizes the turn, parses the protocol
+ *                               payload, surfaces errors as a system notice
+ *   agent_end                 → safety: returns Header.status to 'idle'
+ *
+ * The sanitizer runs INSIDE `ChatPane.updateAssistantTurn`, so even partial
+ * `<amadeus_state>` blocks never reach the rendered transcript.
+ *
+ * AMADEUS_DEBUG=1 logs every event to stderr.
  */
-export function attachStateHooks(agent: Agent): () => void {
-  let tickerHandle: NodeJS.Timeout | undefined
-  let elapsedTicks = 0
-  let textReceiving = false
-
-  const startTicker = (): void => {
-    elapsedTicks = 0
-    process.stdout.write('[Kurisu thinking')
-    tickerHandle = setInterval(() => {
-      elapsedTicks += 1
-      process.stdout.write('.')
-    }, TICKER_INTERVAL_MS)
-  }
-
-  const stopTicker = (closeWith: string): void => {
-    if (tickerHandle === undefined) {
-      return
-    }
-    clearInterval(tickerHandle)
-    tickerHandle = undefined
-    process.stdout.write(`${closeWith}\n`)
-  }
+export function attachStateHooks(agent: Agent, targets: StateHookTargets): () => void {
+  const { chatPane, header, tui } = targets
 
   return agent.subscribe((event: AgentEvent) => {
     if (DEBUG) {
@@ -64,24 +52,26 @@ export function attachStateHooks(agent: Agent): () => void {
       if (!isAssistantMessage(event.message)) {
         return
       }
-      textReceiving = false
-      startTicker()
+      chatPane.beginAssistantTurn()
+      header.setStatus('thinking')
+      tui.requestRender()
       return
     }
 
-    if (event.type === 'message_update' && isAssistantMessage(event.message) && !textReceiving) {
-      const text = extractAssistantText(event.message)
-      if (text.length > 0) {
-        textReceiving = true
-        stopTicker('] [receiving...]')
+    if (event.type === 'message_update' && isAssistantMessage(event.message)) {
+      const raw = extractAssistantText(event.message)
+      if (raw.length === 0) {
+        return
       }
+      header.setStatus('streaming')
+      chatPane.updateAssistantTurn(raw)
+      tui.requestRender()
       return
     }
 
     if (event.type === 'agent_end') {
-      // Last-resort safety: if the run ended without ever closing the ticker,
-      // close it now so the prompt comes back cleanly.
-      stopTicker('] [no response]')
+      header.setStatus('idle')
+      tui.requestRender()
       return
     }
 
@@ -89,33 +79,36 @@ export function attachStateHooks(agent: Agent): () => void {
       return
     }
 
-    stopTicker(textReceiving ? '' : '] [no text]')
-
     if (event.message.stopReason === 'error' || event.message.stopReason === 'aborted') {
-      process.stderr.write(`[llm ${event.message.stopReason}] ${event.message.errorMessage ?? '(no message)'}\n`)
+      chatPane.appendSystemNotice(
+        `LLM ${event.message.stopReason}: ${event.message.errorMessage ?? 'no detail'}`,
+      )
+      header.setStatus('error')
+      tui.requestRender()
       return
     }
 
     const raw = extractAssistantText(event.message)
     if (raw.length === 0) {
-      process.stderr.write(`[warn] empty assistant message (stopReason=${event.message.stopReason}, ticks=${elapsedTicks})\n`)
+      chatPane.appendSystemNotice(`Empty assistant message (stopReason=${event.message.stopReason})`)
+      tui.requestRender()
       return
     }
 
-    const visible = sanitizeResponse(raw)
-    if (visible.length > 0) {
-      process.stdout.write(`\n${visible}\n\n`)
-    }
+    chatPane.finalizeAssistantTurn(raw)
+    tui.requestRender()
 
     const result = parseAmadeusState(raw)
-    if (result.ok) {
-      const { mood, relationshipDelta, memoryCandidates } = result.state
-      process.stderr.write(
-        `[state] mood=${mood} delta=${JSON.stringify(relationshipDelta)} candidates=${memoryCandidates.length}\n`,
-      )
-    }
-    else {
-      process.stderr.write(`[state] parse failed: ${result.error.kind}\n`)
+    if (DEBUG) {
+      if (result.ok) {
+        const { mood, relationshipDelta, memoryCandidates } = result.state
+        process.stderr.write(
+          `[state] mood=${mood} delta=${JSON.stringify(relationshipDelta)} candidates=${memoryCandidates.length}\n`,
+        )
+      }
+      else {
+        process.stderr.write(`[state] parse failed: ${result.error.kind}\n`)
+      }
     }
   })
 }
