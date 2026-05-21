@@ -1,0 +1,23 @@
+{
+  "name": "@amadeus/tui",
+  "type": "module",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Amadeus TUI app — Steins;Gate phone aesthetic over pi-tui",
+  "license": "MIT",
+  "scripts": {
+    "dev": "node --import tsx --env-file-if-exists=../../.env src/main.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "start": "node --env-file-if-exists=../../.env dist/main.js"
+  },
+  "dependencies": {
+    "@amadeus/character": "workspace:*",
+    "@amadeus/contracts": "workspace:*",
+    "@amadeus/memory": "workspace:*",
+    "@amadeus/relationship": "workspace:*",
+    "@earendil-works/pi-agent-core": "^0.75.3",
+    "@earendil-works/pi-ai": "^0.75.3",
+    "@earendil-works/pi-tui": "^0.75.3"
+  }
+}

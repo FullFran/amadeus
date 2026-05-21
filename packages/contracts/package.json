@@ -1,0 +1,30 @@
+{
+  "name": "@amadeus/contracts",
+  "type": "module",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Shared types and parsers: Mood, RelationshipState, AmadeusState, <amadeus_state> parser",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.4"
+  }
+}

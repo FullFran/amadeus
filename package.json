@@ -1,0 +1,31 @@
+{
+  "name": "@amadeus/monorepo",
+  "type": "module",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "description": "Amadeus — companion AI with Steins;Gate phone aesthetic, built on pi.dev",
+  "license": "MIT",
+  "scripts": {
+    "dev": "pnpm --filter=\"./packages/*\" -r build && pnpm -F @amadeus/tui dev",
+    "build": "pnpm -r --filter=\"./packages/*\" --filter=\"./apps/*\" build",
+    "typecheck": "pnpm -r --filter=\"./packages/*\" --filter=\"./apps/*\" --parallel typecheck",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "clean": "pnpm -r exec rm -rf dist"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "^4.10.0",
+    "@types/node": "^24.0.0",
+    "eslint": "^9.20.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.4"
+  },
+  "engines": {
+    "node": ">=24.0.0",
+    "pnpm": ">=10.0.0"
+  }
+}
