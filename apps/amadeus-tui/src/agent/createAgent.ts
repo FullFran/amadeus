@@ -8,10 +8,11 @@ import { getModel } from '@earendil-works/pi-ai'
  * Default model for Kurisu. Uses OpenCode Go hosted service (OpenAI-compatible
  * proxy at https://opencode.ai/zen/go/v1) — auth via OPENCODE_API_KEY env.
  *
- * To switch models, see the `opencode-go` block in pi-ai's MODELS registry
- * (e.g. `'glm-5.1'`, `'deepseek-v4-pro'`, `'kimi-k2.5'`).
+ * Picked `deepseek-v4-flash` for first-token latency in companion mode.
+ * Swap to `'kimi-k2.6'` or `'deepseek-v4-pro'` for higher reasoning quality
+ * (e.g. when entering `coding` or `lab` mode in WP9).
  */
-export const KURISU_MODEL = getModel('opencode-go', 'kimi-k2.6')
+export const KURISU_MODEL = getModel('opencode-go', 'deepseek-v4-flash')
 
 const INITIAL_RELATIONSHIP: RelationshipState = {
   trust: 10,
