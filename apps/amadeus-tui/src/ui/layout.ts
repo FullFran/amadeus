@@ -20,8 +20,9 @@ import { createPhoneFrame } from './PhoneFrame.js'
  */
 export function composeAmadeusLayout(
   header: Component,
+  portrait: Component,
   chatPane: Component,
   inputBar: Component,
 ): Component {
-  return createPhoneFrame([header, chatPane, inputBar])
+  return createPhoneFrame([header, portrait, chatPane, inputBar])
 }

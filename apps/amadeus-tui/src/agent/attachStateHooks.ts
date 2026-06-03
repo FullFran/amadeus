@@ -6,6 +6,7 @@ import { parseAmadeusState } from '@amadeus/contracts'
 
 import type { ChatPane } from '../ui/ChatPane.js'
 import type { Header } from '../ui/Header.js'
+import type { WaifuPortrait } from '../ui/WaifuPortrait.js'
 
 import { extractAssistantText } from './extractAssistantText.js'
 
@@ -14,6 +15,7 @@ const DEBUG = process.env.AMADEUS_DEBUG === '1'
 export interface StateHookTargets {
   chatPane: ChatPane
   header: Header
+  portrait: WaifuPortrait
   tui: TUI
 }
 
@@ -38,7 +40,7 @@ function isAssistantMessage(message: AgentMessage): message is AssistantMessage 
  * AMADEUS_DEBUG=1 logs every event to stderr.
  */
 export function attachStateHooks(agent: Agent, targets: StateHookTargets): () => void {
-  const { chatPane, header, tui } = targets
+  const { chatPane, header, portrait, tui } = targets
 
   return agent.subscribe((event: AgentEvent) => {
     if (DEBUG) {
@@ -96,19 +98,21 @@ export function attachStateHooks(agent: Agent, targets: StateHookTargets): () =>
     }
 
     chatPane.finalizeAssistantTurn(raw)
-    tui.requestRender()
 
     const result = parseAmadeusState(raw)
-    if (DEBUG) {
-      if (result.ok) {
+    if (result.ok) {
+      portrait.setMood(result.state.mood)
+      if (DEBUG) {
         const { mood, relationshipDelta, memoryCandidates } = result.state
         process.stderr.write(
           `[state] mood=${mood} delta=${JSON.stringify(relationshipDelta)} candidates=${memoryCandidates.length}\n`,
         )
       }
-      else {
-        process.stderr.write(`[state] parse failed: ${result.error.kind}\n`)
-      }
     }
+    else if (DEBUG) {
+      process.stderr.write(`[state] parse failed: ${result.error.kind}\n`)
+    }
+
+    tui.requestRender()
   })
 }

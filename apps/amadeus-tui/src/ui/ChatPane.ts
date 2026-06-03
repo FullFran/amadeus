@@ -26,9 +26,30 @@ const TURN_SEPARATOR = '\n\n---\n\n'
  */
 export class ChatPane extends Markdown {
   private turns: Turn[] = []
+  private maxRows = Number.MAX_SAFE_INTEGER
 
   constructor() {
     super('', 2, 1, markdownTheme)
+  }
+
+  /**
+   * Hard cap on rendered rows. When the full transcript would exceed `n`
+   * lines, only the LAST `n` are returned — old turns scroll out of view.
+   *
+   * This is what keeps the waifu pinned at the top of the screen Steins;Gate
+   * phone style: the ChatPane physically can't grow past its allocation, so
+   * the layout above (Header + Portrait) never gets pushed off-screen.
+   */
+  setMaxRows(n: number): void {
+    this.maxRows = Math.max(1, n)
+  }
+
+  override render(width: number): string[] {
+    const all = super.render(width)
+    if (all.length <= this.maxRows) {
+      return all
+    }
+    return all.slice(-this.maxRows)
   }
 
   appendUserTurn(text: string): void {
