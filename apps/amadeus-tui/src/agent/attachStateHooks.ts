@@ -2,12 +2,14 @@ import type { Agent, AgentEvent, AgentMessage } from '@earendil-works/pi-agent-c
 import type { AssistantMessage } from '@earendil-works/pi-ai'
 import type { TUI } from '@earendil-works/pi-tui'
 
-import { parseAmadeusState } from '@amadeus/contracts'
-
 import type { ChatPane } from '../ui/ChatPane.js'
 import type { Header } from '../ui/Header.js'
-import type { WaifuPortrait } from '../ui/WaifuPortrait.js'
 
+import type { WaifuPortrait } from '../ui/WaifuPortrait.js'
+import type { Soul } from './soul.js'
+import { resolveMood } from '@amadeus/character'
+
+import { parseAmadeusState } from '@amadeus/contracts'
 import { extractAssistantText } from './extractAssistantText.js'
 
 const DEBUG = process.env.AMADEUS_DEBUG === '1'
@@ -17,6 +19,7 @@ export interface StateHookTargets {
   header: Header
   portrait: WaifuPortrait
   tui: TUI
+  soul: Soul
 }
 
 function isAssistantMessage(message: AgentMessage): message is AssistantMessage {
@@ -40,7 +43,7 @@ function isAssistantMessage(message: AgentMessage): message is AssistantMessage 
  * AMADEUS_DEBUG=1 logs every event to stderr.
  */
 export function attachStateHooks(agent: Agent, targets: StateHookTargets): () => void {
-  const { chatPane, header, portrait, tui } = targets
+  const { chatPane, header, portrait, tui, soul } = targets
 
   return agent.subscribe((event: AgentEvent) => {
     if (DEBUG) {
@@ -101,11 +104,21 @@ export function attachStateHooks(agent: Agent, targets: StateHookTargets): () =>
 
     const result = parseAmadeusState(raw)
     if (result.ok) {
-      portrait.setMood(result.state.mood)
+      // Fold the turn into the persistent soul (clamp+apply the delta, retain
+      // memory candidates), THEN drive the portrait off the post-turn
+      // relationship so mood policy (e.g. high annoyance) can override the
+      // LLM-proposed mood.
+      //
+      // WP9 NOTE: this fires once per assistant message_end — exactly once per
+      // user turn while there are no tools. When WP9 adds tools/steering a
+      // single turn emits multiple assistant messages; fold on the FINAL one
+      // (or on agent_end) so a turn applies ONE relationship update, not N.
+      const relationship = soul.applyTurn(result.state)
+      portrait.setMood(resolveMood({ llmMood: result.state.mood, state: relationship }))
       if (DEBUG) {
         const { mood, relationshipDelta, memoryCandidates } = result.state
         process.stderr.write(
-          `[state] mood=${mood} delta=${JSON.stringify(relationshipDelta)} candidates=${memoryCandidates.length}\n`,
+          `[state] mood=${mood} delta=${JSON.stringify(relationshipDelta)} candidates=${memoryCandidates.length} stage=${relationship.stage}\n`,
         )
       }
     }

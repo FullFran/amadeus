@@ -1,5 +1,7 @@
 import type { KnownProvider } from '@earendil-works/pi-ai'
 
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import { getEnvApiKey } from '@earendil-works/pi-ai'
 
 /** Default LLM provider for Amadeus. Resolvable models: see pi-ai's MODELS registry. */
@@ -29,4 +31,27 @@ export function assertApiKey(provider: KnownProvider = AMADEUS_PROVIDER): void {
   throw new Error(
     `No API key found for provider "${provider}". Set ${envVar} in your environment or in the .env file at the monorepo root.`,
   )
+}
+
+/**
+ * Where Amadeus persists the soul (relationship.json + memory.json).
+ *
+ * Resolves to a STABLE, launch-location-independent path so Kurisu remembers
+ * you regardless of the directory you start her from (a cwd-relative store
+ * would silently fork into a fresh, amnesiac soul on `pnpm start` or an
+ * install run):
+ *   1. `AMADEUS_DATA_DIR` if set (explicit override, e.g. a repo-local dir).
+ *   2. `$XDG_DATA_HOME/amadeus` (XDG Base Directory spec).
+ *   3. `~/.local/share/amadeus` (XDG default).
+ */
+export function resolveDataDir(): string {
+  const override = process.env.AMADEUS_DATA_DIR
+  if (override !== undefined && override !== '') {
+    return override
+  }
+  const xdgDataHome = process.env.XDG_DATA_HOME
+  const base = xdgDataHome !== undefined && xdgDataHome !== ''
+    ? xdgDataHome
+    : join(homedir(), '.local', 'share')
+  return join(base, 'amadeus')
 }

@@ -2,7 +2,8 @@ import { ProcessTerminal, TUI } from '@earendil-works/pi-tui'
 
 import { attachStateHooks } from './agent/attachStateHooks.js'
 import { createKurisuAgent } from './agent/createAgent.js'
-import { assertApiKey } from './config/env.js'
+import { createSoul } from './agent/soul.js'
+import { assertApiKey, resolveDataDir } from './config/env.js'
 import { ChatPane } from './ui/ChatPane.js'
 import { Header } from './ui/Header.js'
 import { InputBar } from './ui/InputBar.js'
@@ -28,8 +29,9 @@ async function main(): Promise<void> {
 
   const terminal = new ProcessTerminal()
   const tui = new TUI(terminal, true)
-  const agent = createKurisuAgent()
-  const header = new Header('companion', 'idle')
+  const soul = createSoul(resolveDataDir())
+  const agent = createKurisuAgent(soul.composePrompt(''))
+  const header = new Header(soul.mode, 'idle')
   const chatPane = new ChatPane()
   const { renderer: portraitRenderer, tag: portraitTag } = createPortraitRenderer()
   const portrait = new WaifuPortrait(portraitRenderer, 'neutral')
@@ -74,6 +76,9 @@ async function main(): Promise<void> {
     header.setStatus('thinking')
     tui.requestRender()
     try {
+      // Recompose the prompt with the live relationship + memories relevant to
+      // THIS message so continuity updates mid-session, not only on restart.
+      agent.state.systemPrompt = soul.composePrompt(text)
       await agent.prompt(text)
     }
     catch (error) {
@@ -87,7 +92,7 @@ async function main(): Promise<void> {
     }
   })
 
-  detachHooks = attachStateHooks(agent, { chatPane, header, portrait, tui })
+  detachHooks = attachStateHooks(agent, { chatPane, header, portrait, tui, soul })
 
   tui.addChild(composeAmadeusLayout(header, portrait, chatPane, inputBar))
   tui.setFocus(inputBar)

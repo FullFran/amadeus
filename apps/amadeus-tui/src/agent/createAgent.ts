@@ -1,6 +1,3 @@
-import type { RelationshipState } from '@amadeus/contracts'
-
-import { buildSystemPrompt } from '@amadeus/character'
 import { Agent } from '@earendil-works/pi-agent-core'
 import { getModel } from '@earendil-works/pi-ai'
 
@@ -14,30 +11,21 @@ import { getModel } from '@earendil-works/pi-ai'
  */
 export const KURISU_MODEL = getModel('opencode-go', 'deepseek-v4-flash')
 
-const INITIAL_RELATIONSHIP: RelationshipState = {
-  trust: 10,
-  affection: 5,
-  familiarity: 3,
-  annoyance: 0,
-  stage: 'stranger',
-}
-
 /**
- * Constructs a fresh Kurisu Agent with the composed system prompt and the
- * default model. The agent does not yet have memory, mood resolution, or
- * relationship persistence — those come in WP7/WP8.
+ * Constructs a fresh Kurisu Agent. The `systemPrompt` is composed by the
+ * {@link ../agent/soul!Soul} from the persisted relationship + relevant
+ * memories, so the agent itself stays stateless about the persona — the caller
+ * refreshes `agent.state.systemPrompt` before each turn for live continuity.
  */
-export function createKurisuAgent(): Agent {
+export function createKurisuAgent(systemPrompt: string): Agent {
   return new Agent({
     initialState: {
-      systemPrompt: buildSystemPrompt({
-        mode: 'companion',
-        relationshipState: INITIAL_RELATIONSHIP,
-      }),
+      systemPrompt,
       model: KURISU_MODEL,
-      // 'off' disables pi's extended-thinking request so Kimi responds with
-      // shorter latency in companion mode. Bump to 'low'/'medium' in 'lab' or
-      // 'coding' modes when reasoning quality matters more than first-token time.
+      // 'off' disables pi's extended-thinking request so deepseek-v4-flash
+      // responds with shorter latency in companion mode. Bump to 'low'/'medium'
+      // in 'lab'/'coding' modes when reasoning quality matters more than
+      // first-token time.
       thinkingLevel: 'off',
     },
   })
