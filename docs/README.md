@@ -15,7 +15,7 @@ Blueprint técnico de Project Amadeus. La señal útil de AIRI sigue intacta —
 | Área | Decisión |
 |---|---|
 | Runtime de agente | `@earendil-works/pi-agent-core` (event loop, tool calling, hooks) |
-| LLM API | `@earendil-works/pi-ai` (multi-provider: Anthropic, OpenAI, Google…) |
+| LLM API | `@earendil-works/pi-ai` (multi-provider: Anthropic, OpenAI, Google…); **default: OpenCode-Go + `deepseek-v4-flash`** (ver [ADR-0001](./adr/0001-llm-provider-opencode-go.md)) |
 | TUI | `@earendil-works/pi-tui` (componentes, overlays, Kitty/iTerm2 images) |
 | Web (futuro) | `@earendil-works/pi-web-ui` |
 | Persistencia MVP | JSON visible y editable por el usuario |
@@ -33,7 +33,7 @@ Blueprint técnico de Project Amadeus. La señal útil de AIRI sigue intacta —
 | Bloquear/transformar tool calls | `beforeToolCall` / `afterToolCall` |
 | Tool registry con tipos | `agent.state.tools = [...]` (TypeBox schemas) |
 | Streaming de tokens | event `message_update` |
-| Multi-provider LLM | `getModel('anthropic', '...')` / `'openai'` / `'google'` |
+| Multi-provider LLM | `getModel('opencode-go', 'deepseek-v4-flash')` (default) / `'anthropic'` (fallback) / `'openai'` / `'google'` — proveedor activo en `config/env.ts` (`AMADEUS_PROVIDER`) |
 | TUI con overlays flotantes | `tui.showOverlay(comp, { anchor: 'center', ... })` |
 | Render de imágenes en terminal | `new Image(base64, mimeType, theme, options)` (Kitty/iTerm2) |
 | Markdown highlighting | `new Markdown(text, paddingX, paddingY, theme)` |
@@ -69,7 +69,7 @@ project-waifu/amadeus/
 │       │   ├── hooks/
 │       │   │   ├── parseAmadeusState.ts   # subscribe('message_end')
 │       │   │   ├── injectMemory.ts        # transformContext
-│       │   │   └── updateRelationship.ts  # subscribe('turn_end')
+│       │   │   └── updateRelationship.ts  # subscribe('message_end') — fold en message_end, no turn_end
 │       │   └── tools/
 │       │       ├── memoryTools.ts     # save/search/delete via tool calls
 │       │       └── modeTools.ts       # switch companion|coding|lab|ops
@@ -130,12 +130,11 @@ Usuario teclea en Editor
           -> ChatPane re-render diferencial
         -> message_end
           -> parseAmadeusState  (Mood + RelationshipDelta + MemoryCandidate[])
-            -> WaifuPortrait swap (Mood)
+            -> updateRelationship (aplicar delta) + persistMemoryCandidates
+            -> WaifuPortrait swap (Mood resuelto post-delta)
             -> StatusHud update
         -> tool_execution_* (si hay tool call)
-        -> turn_end
-          -> updateRelationship (aplicar delta)
-          -> persistMemoryCandidates (filtrar + guardar)
+        // turn_end no se usa — el fold de estado ocurre en message_end
 ```
 
 ## Contrato mínimo de `<amadeus_state>`

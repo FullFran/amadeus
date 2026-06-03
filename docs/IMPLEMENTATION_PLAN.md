@@ -4,6 +4,24 @@ Plan ejecutable para levantar Project Amadeus apoyándonos en [pi](https://pi.de
 
 > Prerequisito: leer [`README.md`](./README.md) (blueprint) — explica POR QUÉ esta arquitectura, qué nos da pi y qué construimos nosotros.
 
+## Estado actual
+
+> Actualizado: 2026-06-03
+
+| WP | Estado | Notas |
+|---|---|---|
+| WP1 bootstrap | ✅ Completo | `.prototools` no existe (Node 24 real); package es `@amadeus/tui` |
+| WP2 contracts | ✅ Completo | `parseAmadeusState` + 38 tests |
+| WP3 character | ✅ Completo | `buildSystemPrompt`, `responseSanitizer`, `moodRules`; `resolveMood` wired |
+| WP4 wiring | ✅ Completo | Diseño basado en `message_end` (no `turn_end`); ver nota en WP4 |
+| WP5 TUI shell | ✅ Completo | Shell Steins;Gate funcional con streaming |
+| WP6 WaifuPortrait | ✅ Completo | ASCII fallback activo; ruta Kitty/Image implementada, esperando PNGs en `assets/portraits/` |
+| WP7 memory | ⚠️ Core completo | `@amadeus/memory`: store/extract/append/search, `memory.json`, candidates con importance≥5 persisten e inyectan contexto cada turno. **Pendiente**: slash commands `/mem`, `/remember`, `/forget` |
+| WP8 relationship | ⚠️ Core completo | `@amadeus/relationship`: `applyDelta`/`narrativeStage`/store, `relationship.json`, delta aplicado+persistido cada turno, stage modula tono vía `buildSystemPrompt`. **Pendiente**: slash command `/state` y overlay `StatusHud` |
+| WP9 modes + tools | ❌ No iniciado | |
+
+**Continuidad live:** antes de cada prompt la app recompone `agent.state.systemPrompt` con el estado actual de relación + las memorias relevantes al mensaje del usuario (equivalente práctico del `transformContext` planeado). Persistencia en `$XDG_DATA_HOME/amadeus` (default `~/.local/share/amadeus`), override con `AMADEUS_DATA_DIR`.
+
 ## Quick path
 
 1. WP1 monorepo pnpm con 4 packages + 1 app.
@@ -20,7 +38,7 @@ Al final de WP9 deberías tener:
 
 - TUI funcional con marco Steins;Gate verde CRT.
 - Retrato de Kurisu cambiando por `Mood` (Kitty/iTerm2 o fallback ASCII).
-- Streaming de respuesta vía pi-ai (provider configurable: Anthropic/OpenAI/Google).
+- Streaming de respuesta vía pi-ai (default: OpenCode-Go + `deepseek-v4-flash`; provider configurable via `AMADEUS_PROVIDER`).
 - Parser de `<amadeus_state>` con tests.
 - Memoria JSON persistente, visible y editable.
 - Relación con deltas aplicados turno a turno y narrative stage.
@@ -39,8 +57,8 @@ Al final de WP9 deberías tener:
     "@amadeus/character": "workspace:*",
     "@amadeus/memory": "workspace:*",
     "@amadeus/relationship": "workspace:*",
-    "chalk": "^5",
-    "@sinclair/typebox": "^0.34"
+    "chalk": "^5"
+    // @sinclair/typebox ^0.34 — incorporar en WP9 (tool schemas); no instalado aún
   }
 }
 ```
@@ -60,7 +78,7 @@ Dejar el esqueleto listo SIN crear packages que no vamos a tocar ya.
 - `package.json` raíz con scripts `dev`, `build`, `typecheck`, `lint`, `test`
 - 4 packages stub (`@amadeus/contracts`, `@amadeus/character`, `@amadeus/memory`, `@amadeus/relationship`) — cada uno con `package.json`, `tsconfig.json`, `src/index.ts` vacío
 - `apps/amadeus-tui` stub con `src/main.ts` que sólo importa pi y arranca un TUI vacío
-- `.gitignore`, `.editorconfig`, `.prototools` (Node 22)
+- `.gitignore`, `.editorconfig` _(`.prototools` no existe — el piso real es Node 24, declarado en `engines.node` del `package.json` raíz)_
 - ESLint config compartido (clonar de AIRI si querés)
 
 ### Estructura
@@ -87,8 +105,8 @@ amadeus/
 ### Criterio de aceptación
 
 - [ ] `pnpm install` instala pi-* y los packages workspace sin warnings
-- [ ] `pnpm -F amadeus-tui typecheck` pasa
-- [ ] `pnpm -F amadeus-tui dev` arranca un TUI vacío y se cierra con Ctrl+C limpio
+- [ ] `pnpm -F @amadeus/tui typecheck` pasa
+- [ ] `pnpm -F @amadeus/tui dev` arranca un TUI vacío y se cierra con Ctrl+C limpio
 - [ ] Cada package workspace exporta vacío sin romper
 
 ## WP2 — amadeus-contracts (PRIMERO, no te saltes esto)
@@ -174,10 +192,10 @@ Demostrar que pi + character + parser ya forman un agente Kurisu vivo, sin UI bo
 
 - `apps/amadeus-tui/src/main.ts` armado:
   - Crea `new Agent({ initialState: { systemPrompt: buildSystemPrompt({...}), model: ... } })`
-  - Subscribe a `message_end` → llama `parseAmadeusState`
-  - Subscribe a `turn_end` → log del state parseado
+  - Subscribe a `message_end` → llama `parseAmadeusState`, aplica el `RelationshipDelta` y persiste candidates (el fold de estado ocurre aquí, no en `turn_end`)
+  - _(nota: `turn_end` no se usa — toda la lógica de estado se resuelve en `message_end`)_
   - Loop simple: leer línea de stdin, `agent.prompt(line)`, imprimir streaming
-- Configuración de provider vía env (`ANTHROPIC_API_KEY`, etc.)
+- Configuración de provider vía env (`OPENCODE_API_KEY` para el default OpenCode-Go; `ANTHROPIC_API_KEY` para el fallback Anthropic — ver `config/env.ts`)
 
 ### Archivos sugeridos
 
@@ -420,7 +438,7 @@ Usuario escribe en InputBar (Steins;Gate phone)
         → message_end firea parseAmadeusState
           → WaifuPortrait swappea PNG (Kitty)
           → StatusHud refleja nuevo trust/affection
-        → turn_end aplica RelationshipDelta y persiste
+        → message_end aplica RelationshipDelta y persiste (turn_end no se usa)
         → MemoryCandidates con importance >= 5 se guardan en memory.json
 ```
 
@@ -428,17 +446,18 @@ Usuario escribe en InputBar (Steins;Gate phone)
 
 | Riesgo | Control |
 |---|---|
-| Pi rompe API entre versiones (está en 0.x) | Pin exacto de versión + tests de integración del wiring |
+| Pi rompe API entre versiones (está en 0.x) | Caret `^0.75.3` + lockfile que fija `0.75.3` exacto; tests de integración del wiring |
 | Kurisu se olvida del protocolo `<amadeus_state>` | Recordatorio en system prompt + parser tolerante + diagnostic log |
 | El LLM produce JSON inválido en el bloque | Parser nunca crashea, devuelve `{ ok: false }` y se loggea |
 | Terminal sin Kitty/iTerm2 (la mayoría sobre SSH) | Fallback ASCII detectado en boot |
 | Memoria crece sin tope | `extractMemoryCandidates` filtra por importance + futuro: rotación |
 | Tool calls del modo coding peligrosas | `beforeToolCall` con confirmación interactiva para bash/write |
 | Forkear pi por algún hook faltante | NO — primero validar que un work-around vía tool o subscribe alcance |
+| ESLint `node/prefer-global/process` | Config necesita ajuste — el flag falla en ESM donde `require('process')` sería incorrecto; deuda conocida |
 
 ## Checklist de salida del MVP
 
-- [ ] El monorepo levanta con `pnpm install && pnpm -F amadeus-tui dev`
+- [ ] El monorepo levanta con `pnpm install && pnpm -F @amadeus/tui dev`
 - [ ] `amadeus-contracts` está antes que la UI y tiene tests del parser
 - [ ] `amadeus-character` no importa pi
 - [ ] `apps/amadeus-tui` es el único punto que conoce pi-agent-core y pi-tui
@@ -446,7 +465,7 @@ Usuario escribe en InputBar (Steins;Gate phone)
 - [ ] Relación persiste y modula el tono
 - [ ] El portrait cambia con el `Mood`
 - [ ] El modo se puede cambiar y las tools se gatean
-- [ ] Funciona con al menos un provider (Anthropic recomendado para arrancar)
+- [ ] Funciona con al menos un provider (OpenCode-Go + `deepseek-v4-flash` por defecto; requiere `OPENCODE_API_KEY`)
 
 ## Post-MVP (no entran en estos 9 WPs)
 
