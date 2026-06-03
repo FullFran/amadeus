@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { parseAmadeusState } from '../src/parseAmadeusState.js'
+import { parseAmadeusState, parseLeadingMood } from '../src/parseAmadeusState.js'
 
 const validBlock = `
 <amadeus_state>
@@ -153,5 +153,30 @@ describe('parseAmadeusState — invalid shape', () => {
     if (result.ok)
       return
     expect(result.error).toMatchObject({ kind: 'invalid-shape', field: 'root' })
+  })
+})
+
+describe('parseLeadingMood', () => {
+  it('extracts a complete leading mood tag', () => {
+    expect(parseLeadingMood('<mood>smug</mood>Reasonable position.')).toBe('smug')
+  })
+
+  it('tolerates whitespace inside and around the tag', () => {
+    expect(parseLeadingMood('  <mood> embarrassed </mood>\n\nB-baka.')).toBe('embarrassed')
+  })
+
+  it('returns null while the tag is still streaming (no close yet)', () => {
+    expect(parseLeadingMood('<mood>thinki')).toBeNull()
+    expect(parseLeadingMood('<mo')).toBeNull()
+  })
+
+  it('returns null for an unknown mood value', () => {
+    expect(parseLeadingMood('<mood>ecstatic</mood>hi')).toBeNull()
+  })
+
+  it('returns null when there is no leading tag', () => {
+    expect(parseLeadingMood('Just text.')).toBeNull()
+    // Only the LEADING tag counts — a mood tag mid-text is ignored here.
+    expect(parseLeadingMood('Hello <mood>soft</mood>')).toBeNull()
   })
 })

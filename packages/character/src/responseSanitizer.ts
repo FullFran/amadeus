@@ -16,9 +16,20 @@ const STATE_BLOCK_REGEX = /(?:`{3}[\w-]*\s*)?<amadeus_state>[\s\S]*?<\/amadeus_s
 // only removed when our tag actually follows it.
 const STREAMING_TAIL_REGEX = /(?:`{3}[\w-]*\s*)?<amadeus_state[\s\S]*$/
 
+// The response may LEAD with a `<mood>X</mood>` tag (a fast portrait hint that
+// streams before the visible text). Strip it from the head: a complete tag
+// plus its trailing whitespace, OR — mid-stream — a `<mood>…` whose close
+// hasn't arrived yet (everything to end-of-string, since no visible text comes
+// before it). Anchored to start (`^`) so it never touches a legit `<` elsewhere.
+const LEADING_MOOD_REGEX = /^\s*<mood>[\s\S]*?(?:<\/mood>\s*|$)/i
+// The opening tag itself still arriving char-by-char ("<m", "<mo", "<moo", "<mood").
+const LEADING_MOOD_OPENING_REGEX = /^\s*<m(?:o(?:od?)?)?$/i
+
 /**
- * Strips every `<amadeus_state>...</amadeus_state>` block from an assistant
- * response so the visible UI never shows the hidden protocol payload.
+ * Strips the hidden protocol markers from an assistant response so the visible
+ * UI never shows them: a leading `<mood>…</mood>` portrait hint at the head and
+ * every `<amadeus_state>…</amadeus_state>` block (including a partial one still
+ * streaming at either end).
  *
  * Use when:
  * - Rendering assistant text to the user (TUI ChatPane, web view, logs),
@@ -35,6 +46,8 @@ const STREAMING_TAIL_REGEX = /(?:`{3}[\w-]*\s*)?<amadeus_state[\s\S]*$/
  */
 export function sanitizeResponse(text: string): string {
   return text
+    .replace(LEADING_MOOD_REGEX, '')
+    .replace(LEADING_MOOD_OPENING_REGEX, '')
     .replace(STATE_BLOCK_REGEX, '')
     .replace(STREAMING_TAIL_REGEX, '')
     .replace(/[ \t]+\n/g, '\n')

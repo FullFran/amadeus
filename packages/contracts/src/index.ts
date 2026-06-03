@@ -18,6 +18,7 @@ export {
 export {
   parseAmadeusState,
   type ParseError,
+  parseLeadingMood,
   type ParseResult,
 } from './parseAmadeusState.js'
 export {

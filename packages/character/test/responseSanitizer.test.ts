@@ -85,4 +85,27 @@ Line two.`
     const text = `Mi nombre es Kurisu.\n\n\`\`\`xml\n\n<amadeus_state>\n{"mood":"neutral"}\n</amadeus_state>\n\n\`\`\``
     expect(sanitizeResponse(text)).toBe('Mi nombre es Kurisu.')
   })
+
+  it('strips a leading <mood> tag and its trailing whitespace', () => {
+    expect(sanitizeResponse('<mood>smug</mood>\n\nReasonable position.')).toBe('Reasonable position.')
+  })
+
+  it('hides a leading <mood> tag while its value is still streaming', () => {
+    expect(sanitizeResponse('<mood>thinki')).toBe('')
+    expect(sanitizeResponse('<mood>')).toBe('')
+  })
+
+  it('hides the leading mood opening tag arriving char-by-char', () => {
+    expect(sanitizeResponse('<m')).toBe('')
+    expect(sanitizeResponse('<mood')).toBe('')
+  })
+
+  it('strips BOTH the leading mood tag and the trailing state block', () => {
+    const text = '<mood>soft</mood>\nHola.\n\n<amadeus_state>{"mood":"soft"}</amadeus_state>'
+    expect(sanitizeResponse(text)).toBe('Hola.')
+  })
+
+  it('leaves a non-leading "<" in prose alone', () => {
+    expect(sanitizeResponse('use a < b to compare')).toBe('use a < b to compare')
+  })
 })

@@ -1,27 +1,49 @@
 import type { AmadeusState } from './amadeusState.js'
 import type { MemoryCandidate, MemoryType } from './memory.js'
-import type { RelationshipDelta } from './relationship.js'
+import type { Mood } from './mood.js'
 
+import type { RelationshipDelta } from './relationship.js'
 import { errMessage } from './internal/errMessage.js'
 import { isMemoryType } from './memory.js'
 import { isMood } from './mood.js'
 
-export type ParseError =
-  | { kind: 'missing-block' }
-  | { kind: 'invalid-json', message: string }
-  | { kind: 'invalid-shape', field: string, message: string }
+export type ParseError
+  = | { kind: 'missing-block' }
+    | { kind: 'invalid-json', message: string }
+    | { kind: 'invalid-shape', field: string, message: string }
 
-export type ParseResult =
-  | { ok: true, state: AmadeusState }
-  | { ok: false, error: ParseError }
+export type ParseResult
+  = | { ok: true, state: AmadeusState }
+    | { ok: false, error: ParseError }
 
-type FieldResult<T> =
-  | { ok: true, value: T }
-  | { ok: false, error: ParseError }
+type FieldResult<T>
+  = | { ok: true, value: T }
+    | { ok: false, error: ParseError }
 
 const STATE_BLOCK_REGEX = /<amadeus_state>([\s\S]*?)<\/amadeus_state>/
 
+const LEADING_MOOD_REGEX = /^\s*<mood>\s*([a-z]+)\s*<\/mood>/i
+
 const DELTA_FIELDS = ['trust', 'affection', 'familiarity', 'annoyance'] as const
+
+/**
+ * Extracts the OPTIONAL leading `<mood>…</mood>` tag a response may emit as its
+ * very first token, so the UI can react to the mood the instant the model
+ * starts replying — before the full {@link AmadeusState} block arrives at the
+ * tail (which is, by protocol, the LAST thing in the response).
+ *
+ * Use when:
+ * - Subscribed to `message_update` to drive the portrait mid-stream.
+ *
+ * Returns the {@link Mood} when a COMPLETE, valid leading tag is present;
+ * `null` while it is still streaming, absent, or an unknown value. Never throws.
+ * The authoritative mood for persistence still comes from {@link parseAmadeusState}
+ * at `message_end`.
+ */
+export function parseLeadingMood(text: string): Mood | null {
+  const candidate = LEADING_MOOD_REGEX.exec(text)?.[1]?.toLowerCase()
+  return candidate !== undefined && isMood(candidate) ? candidate : null
+}
 
 /**
  * Extracts and validates the <amadeus_state> JSON block from an assistant
