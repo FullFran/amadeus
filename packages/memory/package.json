@@ -20,9 +20,14 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@amadeus/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.4"
   }
 }
