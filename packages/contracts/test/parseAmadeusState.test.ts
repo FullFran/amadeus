@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { parseAmadeusState, parseLeadingMood } from '../src/parseAmadeusState.js'
+import { parseAmadeusState, parseLeadingMood, parseStreamingMood } from '../src/parseAmadeusState.js'
 
 const validBlock = `
 <amadeus_state>
@@ -178,5 +178,25 @@ describe('parseLeadingMood', () => {
     expect(parseLeadingMood('Just text.')).toBeNull()
     // Only the LEADING tag counts — a mood tag mid-text is ignored here.
     expect(parseLeadingMood('Hello <mood>soft</mood>')).toBeNull()
+  })
+})
+
+describe('parseStreamingMood', () => {
+  it('prefers the leading tag when present', () => {
+    expect(parseStreamingMood('<mood>annoyed</mood>Ugh.')).toBe('annoyed')
+  })
+
+  it('falls back to the mood field of a still-streaming state block', () => {
+    const midStream = 'Reasonable position.\n\n<amadeus_state>\n{\n  "mood": "smug",\n  "relationshipDel'
+    expect(parseStreamingMood(midStream)).toBe('smug')
+  })
+
+  it('reads the mood from a complete block when no leading tag exists', () => {
+    expect(parseStreamingMood('hi<amadeus_state>{"mood":"soft","x":1}</amadeus_state>')).toBe('soft')
+  })
+
+  it('returns null before any mood has streamed', () => {
+    expect(parseStreamingMood('Reasonable position. The block has not started')).toBeNull()
+    expect(parseStreamingMood('text\n<amadeus_state>\n{\n  "rela')).toBeNull()
   })
 })

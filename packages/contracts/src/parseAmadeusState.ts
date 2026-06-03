@@ -45,6 +45,27 @@ export function parseLeadingMood(text: string): Mood | null {
   return candidate !== undefined && isMood(candidate) ? candidate : null
 }
 
+// The `mood` field inside an <amadeus_state> block — matched even before the
+// block closes, so the mood is available the instant it streams in the tail.
+const BLOCK_MOOD_REGEX = /<amadeus_state>[\s\S]*?"mood"\s*:\s*"([a-z]+)"/i
+
+/**
+ * Best-effort mood for live (mid-stream) portrait updates, robust to the model
+ * skipping the leading `<mood>` tag: returns the leading-tag mood if present,
+ * otherwise the `mood` field from a (possibly still-streaming) `<amadeus_state>`
+ * block. `null` until a valid mood has actually streamed. Never throws.
+ *
+ * The authoritative end-of-turn mood still comes from {@link parseAmadeusState}.
+ */
+export function parseStreamingMood(text: string): Mood | null {
+  const leading = parseLeadingMood(text)
+  if (leading !== null) {
+    return leading
+  }
+  const candidate = BLOCK_MOOD_REGEX.exec(text)?.[1]?.toLowerCase()
+  return candidate !== undefined && isMood(candidate) ? candidate : null
+}
+
 /**
  * Extracts and validates the <amadeus_state> JSON block from an assistant
  * response. Tolerant of surrounding natural-language text and never throws.

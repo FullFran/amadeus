@@ -8,15 +8,26 @@ import { accent, crtBg, muted } from './theme.js'
 
 /** Cells in each dimension bar. trust 0..100 maps onto 0..BAR_CELLS filled. */
 const BAR_CELLS = 5
+/** Partial-cell glyphs (1..7 eighths) so even a +1 delta visibly nudges the bar. */
+const EIGHTHS = ['', '▏', '▎', '▍', '▌', '▋', '▊', '▉']
 
 const trustInk = (text: string): string => chalk.bgBlack.greenBright(text)
 const warmInk = (text: string): string => chalk.bgBlack.green(text)
 const annoyInk = (text: string): string => chalk.bgBlack.red(text)
 
 function bar(value: number, paint: (text: string) => string): string {
-  const v = Math.max(0, Math.min(100, Math.round(value)))
-  const filled = Math.round((v / 100) * BAR_CELLS)
-  return paint('█'.repeat(filled)) + muted('░'.repeat(BAR_CELLS - filled))
+  const v = Math.max(0, Math.min(100, value))
+  const eighths = Math.round((v / 100) * BAR_CELLS * 8)
+  const full = Math.min(Math.floor(eighths / 8), BAR_CELLS)
+  const remainder = eighths % 8
+
+  let drawn = '█'.repeat(full)
+  let cells = full
+  if (remainder > 0 && cells < BAR_CELLS) {
+    drawn += EIGHTHS[remainder]
+    cells += 1
+  }
+  return paint(drawn) + muted('░'.repeat(BAR_CELLS - cells))
 }
 
 /**

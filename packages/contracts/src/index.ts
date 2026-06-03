@@ -20,6 +20,7 @@ export {
   type ParseError,
   parseLeadingMood,
   type ParseResult,
+  parseStreamingMood,
 } from './parseAmadeusState.js'
 export {
   RELATIONSHIP_STAGES,

@@ -10,7 +10,7 @@ import type { WaifuPortrait } from '../ui/WaifuPortrait.js'
 import type { Soul } from './soul.js'
 import { resolveMood } from '@amadeus/character'
 
-import { parseAmadeusState, parseLeadingMood } from '@amadeus/contracts'
+import { parseAmadeusState, parseStreamingMood } from '@amadeus/contracts'
 import { extractAssistantText } from './extractAssistantText.js'
 
 const DEBUG = process.env.AMADEUS_DEBUG === '1'
@@ -74,11 +74,11 @@ export function attachStateHooks(agent: Agent, targets: StateHookTargets): () =>
       }
       header.setStatus('streaming')
       chatPane.updateAssistantTurn(raw)
-      // The response leads with a `<mood>` hint; the moment it has fully
-      // streamed, swap the portrait WHILE the text keeps coming — so she reacts
-      // as she talks, not after. message_end still applies the authoritative
-      // mood (with relationship-driven overrides) + persistence.
-      const earlyMood = parseLeadingMood(raw)
+      // Swap the portrait WHILE the text streams — from the leading `<mood>`
+      // tag if the model emitted one, else from the mood field of the tail
+      // <amadeus_state> block the instant it streams. message_end still applies
+      // the authoritative mood (with relationship overrides) + persistence.
+      const earlyMood = parseStreamingMood(raw)
       if (earlyMood !== null) {
         portrait.setMood(earlyMood)
       }
