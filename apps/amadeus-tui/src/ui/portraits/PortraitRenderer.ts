@@ -1,9 +1,8 @@
 import type { Mood } from '@amadeus/contracts'
 
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { existsSync } from 'node:fs'
 
 import { detectCapabilities, getPngDimensions, Image, visibleWidth } from '@earendil-works/pi-tui'
 
@@ -20,8 +19,8 @@ import { ASCII_PORTRAIT_FRAMES, PORTRAIT_HEIGHT_LINES } from './ascii.js'
  */
 export interface PortraitRenderer {
   readonly expectedHeight: number
-  frameCount(mood: Mood): number
-  renderMood(mood: Mood, frameIndex: number, width: number): string[]
+  frameCount: (mood: Mood) => number
+  renderMood: (mood: Mood, frameIndex: number, width: number) => string[]
 }
 
 const ALL_MOODS: Mood[] = [

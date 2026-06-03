@@ -1,5 +1,5 @@
-import type { EditorTheme, MarkdownTheme } from '@earendil-works/pi-tui'
 import type { Mood } from '@amadeus/contracts'
+import type { EditorTheme, MarkdownTheme } from '@earendil-works/pi-tui'
 
 import chalk from 'chalk'
 
@@ -23,9 +23,11 @@ export const muted = (text: string): string => chalk.bgBlack.green.dim(text)
 /** User-turn marker color (kept distinct from assistant for transcript scanning). */
 export const userInk = (text: string): string => chalk.bgBlack.cyanBright(text)
 
-/** Mood → portrait/highlight color. Used by WP6 WaifuPortrait fallback and
+/**
+ * Mood → portrait/highlight color. Used by WP6 WaifuPortrait fallback and
  *  WP8 StatusHud accents. Kept here so the persona colour vocabulary lives in
- *  ONE place. */
+ *  ONE place.
+ */
 export const moodColor: Record<Mood, (text: string) => string> = {
   neutral: chalk.bgBlack.green,
   thinking: chalk.bgBlack.cyan,

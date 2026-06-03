@@ -1,5 +1,5 @@
-import type { Component } from '@earendil-works/pi-tui'
 import type { Mode } from '@amadeus/contracts'
+import type { Component } from '@earendil-works/pi-tui'
 
 import { visibleWidth } from '@earendil-works/pi-tui'
 

@@ -1,5 +1,5 @@
-import type { Component, TUI } from '@earendil-works/pi-tui'
 import type { Mood } from '@amadeus/contracts'
+import type { Component, TUI } from '@earendil-works/pi-tui'
 
 import type { PortraitRenderer } from './portraits/PortraitRenderer.js'
 
