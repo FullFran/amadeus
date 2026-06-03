@@ -1,63 +1,78 @@
 import type { Mood } from '@amadeus/contracts'
 
 /**
- * ASCII placeholders per mood — bridge until real PNGs land in
- * `apps/amadeus-tui/assets/portraits/`. Each mood ships TWO frames:
+ * ASCII/ANSI portrait art per mood — a stylized bust of Kurisu rendered in
+ * monospace box-drawing (hair + ahoge, face, lab-coat collar). Each mood ships
+ * TWO frames:
  *   [0] eyes open  (~95% of idle time)
  *   [1] eyes blink (~5%, drives the natural blink in WaifuPortrait)
  *
- * The closed-eyes blink is computed by swapping the eye row for a flat dash
- * so the mood-specific accent (brows, mouth, blush) stays intact during the
- * blink — the same face just blinking, not a different mood.
+ * The bust scaffold is constant; only the EXPRESSION — brow, eyes, mouth —
+ * changes per mood, and the eyes close on the blink frame. The renderer centers
+ * each line individually and applies a single per-mood tint (theme `moodColor`),
+ * a monochrome CRT look that suits the Steins;Gate phone.
  *
- * Color is applied at render time by mapping the mood through
- * `theme.moodColor`.
+ * ALIGNMENT CONTRACT: every row is 13 visible columns and every expression
+ * token (brow/eyes/mouth) is exactly 5 columns, so the face edges line up
+ * vertically. Glyphs are deliberately all single-width (box-drawing + geometric
+ * shapes) — avoid CJK/emoji, which render double-width and shear the art. The
+ * ascii.test.ts guard asserts the row count + per-row width so a bad edit fails
+ * loudly instead of rendering crooked.
  */
 
+const PORTRAIT_WIDTH = 13
+
+interface Expression {
+  /** 5-column forehead accent (brow / furrow / sparkle). */
+  brow: string
+  /** 5-column eye row ("open" frame). */
+  eyes: string
+  /** 5-column mouth. */
+  mouth: string
+}
+
+/** Closed eyes shared by every mood's blink frame (5 columns). */
 const BLINK_EYES = '─   ─'
 
-interface FaceParts {
-  /** 5-cell-wide eye row. */
-  eyes: string
-  /** 1-cell mouth character. */
-  mouth: string
-  /** 1-cell forehead accent (brows, blush mark, sparkle, …). */
-  brow: string
-}
-
-const FACE_PARTS: Record<Mood, FaceParts> = {
-  neutral: { eyes: '◕   ◕', mouth: '‿', brow: ' ' },
-  thinking: { eyes: '◔   ◔', mouth: '─', brow: '✦' },
-  annoyed: { eyes: '▼   ▼', mouth: '﹏', brow: '✖' },
-  smug: { eyes: '◑   ◑', mouth: '⌣', brow: ' ' },
-  embarrassed: { eyes: '>   <', mouth: 'o', brow: '❀' },
-  soft: { eyes: '‿   ‿', mouth: '◡', brow: ' ' },
-  serious: { eyes: '─   ─', mouth: '▔', brow: ' ' },
-}
-
-function renderFace(parts: FaceParts, eyesOverride?: string): string {
-  const eyes = eyesOverride ?? parts.eyes
+function bust(e: Expression, eyes: string): string {
   return [
-    '   ╔═══════╗',
-    `   ║   ${parts.brow}   ║`,
-    `   ║ ${eyes} ║`,
-    '   ║   ·   ║',
-    `   ║   ${parts.mouth}   ║`,
-    '   ║       ║',
-    '   ╚═══╤═══╝',
-    '       │     ',
+    '     ╲╿╱     ',
+    '  ╭───────╮  ',
+    ' ╭╯▒▒▒▒▒▒▒╰╮ ',
+    '╭╯▒╲▔▔▔▔▔╱▒╰╮',
+    `│▒░ ${e.brow} ░▒│`,
+    `│░  ${eyes}  ░│`,
+    '│     ▿     │',
+    `│   ${e.mouth}   │`,
+    '╰╮▁▁▁▁▁▁▁▁▁╭╯',
+    '    │╱ ╲│    ',
+    '  ╔═╧═══╧═╗  ',
   ].join('\n')
 }
 
-export const ASCII_PORTRAIT_FRAMES: Record<Mood, readonly [string, string]> = {
-  neutral: [renderFace(FACE_PARTS.neutral), renderFace(FACE_PARTS.neutral, BLINK_EYES)],
-  thinking: [renderFace(FACE_PARTS.thinking), renderFace(FACE_PARTS.thinking, BLINK_EYES)],
-  annoyed: [renderFace(FACE_PARTS.annoyed), renderFace(FACE_PARTS.annoyed, BLINK_EYES)],
-  smug: [renderFace(FACE_PARTS.smug), renderFace(FACE_PARTS.smug, BLINK_EYES)],
-  embarrassed: [renderFace(FACE_PARTS.embarrassed), renderFace(FACE_PARTS.embarrassed, BLINK_EYES)],
-  soft: [renderFace(FACE_PARTS.soft), renderFace(FACE_PARTS.soft, BLINK_EYES)],
-  serious: [renderFace(FACE_PARTS.serious), renderFace(FACE_PARTS.serious, BLINK_EYES)],
+function frames(e: Expression): readonly [string, string] {
+  return [bust(e, e.eyes), bust(e, BLINK_EYES)]
 }
 
-export const PORTRAIT_HEIGHT_LINES = 8
-export const PORTRAIT_NOMINAL_WIDTH = 13
+const EXPRESSIONS: Record<Mood, Expression> = {
+  neutral: { brow: '     ', eyes: '◕   ◕', mouth: '  ‿  ' },
+  thinking: { brow: '  ✦  ', eyes: '◔   ◔', mouth: '  ─  ' },
+  annoyed: { brow: '╲   ╱', eyes: '◣   ◢', mouth: '  ⌄  ' },
+  smug: { brow: '     ', eyes: '◑   ◑', mouth: '  ⌣  ' },
+  embarrassed: { brow: '╳   ╳', eyes: '>   <', mouth: '  o  ' },
+  soft: { brow: '     ', eyes: '◡   ◡', mouth: '  ◡  ' },
+  serious: { brow: '─────', eyes: '▬   ▬', mouth: '  ▭  ' },
+}
+
+export const ASCII_PORTRAIT_FRAMES: Record<Mood, readonly [string, string]> = {
+  neutral: frames(EXPRESSIONS.neutral),
+  thinking: frames(EXPRESSIONS.thinking),
+  annoyed: frames(EXPRESSIONS.annoyed),
+  smug: frames(EXPRESSIONS.smug),
+  embarrassed: frames(EXPRESSIONS.embarrassed),
+  soft: frames(EXPRESSIONS.soft),
+  serious: frames(EXPRESSIONS.serious),
+}
+
+export const PORTRAIT_HEIGHT_LINES = 11
+export const PORTRAIT_NOMINAL_WIDTH = PORTRAIT_WIDTH
