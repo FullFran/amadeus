@@ -46,9 +46,23 @@ Line two.`
     expect(out).not.toMatch(/\n{3,}/)
   })
 
-  it('leaves an unclosed (streaming) block intact', () => {
+  it('hides an unclosed (streaming) block so raw JSON never leaks on screen', () => {
     const text = `Working on it...<amadeus_state>{"mood":"thinking"`
-    expect(sanitizeResponse(text)).toBe(text.trimEnd())
+    expect(sanitizeResponse(text)).toBe('Working on it...')
+  })
+
+  it('hides an unclosed block that is still inside an opening code fence', () => {
+    const text = `Mi nombre es Kurisu.\n\n\`\`\`xml\n<amadeus_state>\n{"mood":"neu`
+    expect(sanitizeResponse(text)).toBe('Mi nombre es Kurisu.')
+  })
+
+  it('hides the marker the moment the opening tag finishes streaming', () => {
+    const text = `Listo, baka.\n\n<amadeus_state>`
+    expect(sanitizeResponse(text)).toBe('Listo, baka.')
+  })
+
+  it('does not strip a stray angle bracket in visible prose', () => {
+    expect(sanitizeResponse('if a < b then ship it')).toBe('if a < b then ship it')
   })
 
   it('strips a state block wrapped in a markdown code fence', () => {
