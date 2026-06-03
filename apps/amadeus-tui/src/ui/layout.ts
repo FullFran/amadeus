@@ -14,15 +14,16 @@ import { createPhoneFrame } from './PhoneFrame.js'
  *   └──────────────────────────────┘
  *
  * Vertical stacking is what pi-tui's `Box` (and `Container`) already gives us
- * — no extra orchestration here, just the explicit child order. WaifuPortrait
- * (WP6) will slot between Header and ChatPane; StatusHud (WP8) will live as
- * an `tui.showOverlay` anchored bottom-center.
+ * — no extra orchestration here, just the explicit child order: the portrait
+ * is pinned at the top, the StatusHud reads her vitals right beneath it, and
+ * the ChatPane takes the remaining height above the input.
  */
 export function composeAmadeusLayout(
   header: Component,
   portrait: Component,
+  statusHud: Component,
   chatPane: Component,
   inputBar: Component,
 ): Component {
-  return createPhoneFrame([header, portrait, chatPane, inputBar])
+  return createPhoneFrame([header, portrait, statusHud, chatPane, inputBar])
 }

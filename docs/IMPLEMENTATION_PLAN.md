@@ -17,7 +17,7 @@ Plan ejecutable para levantar Project Amadeus apoyándonos en [pi](https://pi.de
 | WP5 TUI shell | ✅ Completo | Shell Steins;Gate funcional con streaming |
 | WP6 WaifuPortrait | ✅ Completo | ASCII fallback activo; ruta Kitty/Image implementada, esperando PNGs en `assets/portraits/` |
 | WP7 memory | ⚠️ Core completo | `@amadeus/memory`: store/extract/append/search, `memory.json`, candidates con importance≥5 persisten e inyectan contexto cada turno. **Pendiente**: slash commands `/mem`, `/remember`, `/forget` |
-| WP8 relationship | ⚠️ Core completo | `@amadeus/relationship`: `applyDelta`/`narrativeStage`/store, `relationship.json`, delta aplicado+persistido cada turno, stage modula tono vía `buildSystemPrompt`. **Pendiente**: slash command `/state` y overlay `StatusHud` |
+| WP8 relationship | ⚠️ Core completo | `@amadeus/relationship`: `applyDelta`/`narrativeStage`/store, `relationship.json`, delta aplicado+persistido cada turno, stage modula tono vía `buildSystemPrompt`. `StatusHud` en vivo bajo el retrato (trust/aff/fam/ann + stage). **Pendiente**: slash command `/state` |
 | WP9 modes + tools | ❌ No iniciado | |
 
 **Continuidad live:** antes de cada prompt la app recompone `agent.state.systemPrompt` con el estado actual de relación + las memorias relevantes al mensaje del usuario (equivalente práctico del `transformContext` planeado). Persistencia en `$XDG_DATA_HOME/amadeus` (default `~/.local/share/amadeus`), override con `AMADEUS_DATA_DIR`.
@@ -368,7 +368,7 @@ apps/amadeus-tui/src/commands/
 - [ ] `/state` muestra trust/affection/familiarity/annoyance + stage
 - [ ] Cuando `trust` cruza thresholds, el stage cambia
 - [ ] El `buildSystemPrompt` recibe el stage actual y modula tono (verificable: prompt al LLM cambia)
-- [ ] StatusHud (overlay) muestra los valores en vivo
+- [x] StatusHud muestra los valores en vivo (strip bajo el retrato, no overlay flotante)
 
 ## WP9 — modos y tool gating
 

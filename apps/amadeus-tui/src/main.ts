@@ -9,6 +9,7 @@ import { Header } from './ui/Header.js'
 import { InputBar } from './ui/InputBar.js'
 import { composeAmadeusLayout } from './ui/layout.js'
 import { createPortraitRenderer } from './ui/portraits/PortraitRenderer.js'
+import { StatusHud } from './ui/StatusHud.js'
 import { WaifuPortrait } from './ui/WaifuPortrait.js'
 
 const CLOCK_TICK_MS = 60_000
@@ -20,6 +21,7 @@ const CLOCK_TICK_MS = 60_000
  * if those change.
  */
 const RESERVED_ROWS_HEADER = 1
+const RESERVED_ROWS_STATUS = 1 // StatusHud vitals strip under the portrait
 const RESERVED_ROWS_INPUT = 3 // editor border + at least one input row
 const RESERVED_ROWS_FRAME_PADDING = 4 // PhoneFrame paddingY=1 (top+bottom) + a couple of inter-component blanks
 const MIN_CHAT_ROWS = 3
@@ -35,6 +37,7 @@ async function main(): Promise<void> {
   const chatPane = new ChatPane()
   const { renderer: portraitRenderer, tag: portraitTag } = createPortraitRenderer()
   const portrait = new WaifuPortrait(portraitRenderer, 'neutral')
+  const statusHud = new StatusHud(soul.relationship())
 
   let exiting = false
   let busy = false
@@ -92,9 +95,9 @@ async function main(): Promise<void> {
     }
   })
 
-  detachHooks = attachStateHooks(agent, { chatPane, header, portrait, tui, soul })
+  detachHooks = attachStateHooks(agent, { chatPane, header, portrait, statusHud, tui, soul })
 
-  tui.addChild(composeAmadeusLayout(header, portrait, chatPane, inputBar))
+  tui.addChild(composeAmadeusLayout(header, portrait, statusHud, chatPane, inputBar))
   tui.setFocus(inputBar)
 
   chatPane.appendSystemNotice(`AMADEUS — El Psy Kongroo. \`/quit\` para salir. _portrait: ${portraitTag}_`)
@@ -103,6 +106,7 @@ async function main(): Promise<void> {
     const reserved
       = RESERVED_ROWS_HEADER
         + portraitRenderer.expectedHeight
+        + RESERVED_ROWS_STATUS
         + RESERVED_ROWS_INPUT
         + RESERVED_ROWS_FRAME_PADDING
     const available = terminal.rows - reserved

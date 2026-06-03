@@ -4,6 +4,7 @@ import type { TUI } from '@earendil-works/pi-tui'
 
 import type { ChatPane } from '../ui/ChatPane.js'
 import type { Header } from '../ui/Header.js'
+import type { StatusHud } from '../ui/StatusHud.js'
 
 import type { WaifuPortrait } from '../ui/WaifuPortrait.js'
 import type { Soul } from './soul.js'
@@ -18,6 +19,7 @@ export interface StateHookTargets {
   chatPane: ChatPane
   header: Header
   portrait: WaifuPortrait
+  statusHud: StatusHud
   tui: TUI
   soul: Soul
 }
@@ -43,7 +45,7 @@ function isAssistantMessage(message: AgentMessage): message is AssistantMessage 
  * AMADEUS_DEBUG=1 logs every event to stderr.
  */
 export function attachStateHooks(agent: Agent, targets: StateHookTargets): () => void {
-  const { chatPane, header, portrait, tui, soul } = targets
+  const { chatPane, header, portrait, statusHud, tui, soul } = targets
 
   return agent.subscribe((event: AgentEvent) => {
     if (DEBUG) {
@@ -115,6 +117,7 @@ export function attachStateHooks(agent: Agent, targets: StateHookTargets): () =>
       // (or on agent_end) so a turn applies ONE relationship update, not N.
       const relationship = soul.applyTurn(result.state)
       portrait.setMood(resolveMood({ llmMood: result.state.mood, state: relationship }))
+      statusHud.setRelationship(relationship)
       if (DEBUG) {
         const { mood, relationshipDelta, memoryCandidates } = result.state
         process.stderr.write(
