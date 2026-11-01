@@ -14,7 +14,7 @@ Branch: feat/pi-mod. Delivery strategy: ask-on-risk. Test runner: vitest (`pnpm 
 
 - [x] T1 (S2, S3, S4) Stage spike in `spikes/vn-stage`: sheet decoding, half-block renderer, pose state machine, column beside the chat. Route: inline, no writer trigger. Commit: dd37416.
 - [x] T2 (S2) Check images through Kitty in Ghostty. Route: inline. Commits: a3d21a6, 66ceab3. Seen working by the user in Ghostty through tmux.
-- [ ] T3 (S1) Hide state tags during streaming with a `streamSimple` wrapper. Route: inline. Pending.
+- [ ] T3 (S1) Hide state tags during streaming with a `streamSimple` wrapper. Route: inline. Commit: 05799fd. Verified with a scripted model; pending a run on the real model.
 - [ ] T4 (S1, S6) Launcher with its own home, soul hooks, retire the old TUI. Route: inline. Pending.
 - [ ] T5 (S1) Character pack outside the code. Route: inline. Pending.
 - [ ] T6 (S5) MCP: Notion, then AgentMail with its own mailbox and a send gate. Route: inline. Pending; needs a credential from the user.
@@ -33,4 +33,6 @@ Branch: feat/pi-mod. Delivery strategy: ask-on-risk. Test runner: vitest (`pnpm 
 - L9 (2026-11-01): T2 uses Kitty unicode placeholders. In a private tmux with no outer terminal: the column holds placeholder cells colored with the image id, frames upload once, the turn still walks its poses. Idle measured 2.7% of one core and 237 MB, against 5.5% and 271-491 MB with half-blocks. No image has been seen by anyone yet.
 - L10 (2026-11-01, user): sent a screenshot, "asi se ve". Kitty works through tmux in Ghostty, large and sharp, with a magenta outline.
 - L11 (2026-11-01): the outline is in the sheet: 28162 partly transparent magenta pixels in kurisu, more hidden under transparency, and an outline tinted by it. Removed in 66ceab3, checked on a rendered frame, not yet by the user in Ghostty. Still open for T4: Pi's startup noise (skill list, conflicts, tmux warning) in the chat.
-- Next: T3, if the user agrees; better art is a separate open point.
+- L12 (2026-11-01, user): "sigue!"
+- L13 (2026-11-01): T3. In a private tmux, 295 samples of a scripted turn with tags split every 5 characters showed no tag fragment in the screen; the caption went `thinking > speaking · smug > celebrating · soft > idle · soft`; the mood arrived 1 ms before the first text. Open, needs the real model: the agent's history now holds clean text, so the model no longer sees its own tags in earlier turns and may stop writing them. The repo's `.env` cannot be read from this session, so the real run is the user's.
+- Next: the user runs `spikes/vn-stage/run.sh --real` for a few turns and shares the mood log; then T4.
