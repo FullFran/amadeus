@@ -2,14 +2,16 @@ import type { Backend } from './kitty'
 import type { Bitmap } from './sheet'
 import type { Pose, StageEvent } from './stage'
 import { execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { appendFileSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 
 import { join } from 'node:path'
 import process from 'node:process'
 import { getCellDimensions } from '@earendil-works/pi-tui'
 
+import { parseAmadeusState } from '../../packages/contracts/src/index'
 import { chooseBackend, deleteImages, fitCells, MAX_ROWS, placeholderLines, placeImage, transmitImage, wrapForTmux } from './kitty'
+import { registerProviders } from './provider'
 import { framesFromSheet, renderHalfBlocks, scaleFrame } from './sheet'
 import { createStage, ROW } from './stage'
 
@@ -73,6 +75,40 @@ function loadPet(id: string): { name: string, frames: Map<number, Bitmap[]> } {
 }
 
 export default function (pi: any) {
+  const realModel = Boolean(process.env.OPENCODE_API_KEY)
+  const logPath = process.env.AMADEUS_STAGE_LOG
+  let mood = ''
+  let requestAt = 0
+  const log = (event: string, extra: object = {}) => {
+    if (logPath)
+      appendFileSync(logPath, `${JSON.stringify({ event, ms: Date.now() - requestAt, ...extra })}\n`)
+  }
+
+  registerProviders(pi, {
+    onRequest: () => {
+      requestAt = Date.now()
+      log('request')
+    },
+    onFirstText: () => log('first_text'),
+    onMood: (value) => {
+      mood = value
+      log('mood', { mood: value })
+    },
+    onRaw: (raw) => {
+      const state = parseAmadeusState(raw)
+      if (state.ok)
+        mood = state.state.mood
+      log('turn', { leadingTag: /^\s*<mood>/.test(raw), stateOk: state.ok, mood: state.ok ? state.state.mood : null })
+    },
+  }, realModel)
+
+  if (realModel) {
+    const persona = readFileSync(new URL('../../packages/character/src/prompts/kurisu.system.md', import.meta.url), 'utf8')
+    pi.on('before_agent_start', async (event: any) => {
+      event.systemPromptOptions.appendSystemPrompt = `${event.systemPromptOptions.appendSystemPrompt ?? ''}\n\n${persona}`.trim()
+    })
+  }
+
   let stage: ReturnType<typeof createStage> | undefined
   let pet: ReturnType<typeof loadPet> | undefined
   let tui: any
@@ -132,7 +168,7 @@ export default function (pi: any) {
         cache.set(key, art)
       }
       const indent = ' '.repeat(Math.max(0, Math.floor((width - art.width) / 2)))
-      const caption = `${pet.name} · ${stage.pose()} · ${backend}`.slice(0, width)
+      const caption = [pet.name, stage.pose(), mood].filter(Boolean).join(' · ').slice(0, width)
       const blank = Math.max(0, rows - art.lines.length - 2)
       return [...Array.from({ length: blank }, () => ''), ...art.lines.map(line => indent + line), '', ' '.repeat(Math.max(0, Math.floor((width - caption.length) / 2))) + caption]
     },
