@@ -1,5 +1,18 @@
+import type { Backend } from './kitty'
 import type { Bitmap } from './sheet'
 import type { Pose, StageEvent } from './stage'
+import { execFileSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
+import { homedir } from 'node:os'
+
+import { join } from 'node:path'
+import process from 'node:process'
+import { getCellDimensions } from '@earendil-works/pi-tui'
+
+import { chooseBackend, deleteImages, fitCells, MAX_ROWS, placeholderLines, placeImage, transmitImage, wrapForTmux } from './kitty'
+import { framesFromSheet, renderHalfBlocks, scaleFrame } from './sheet'
+import { createStage, ROW } from './stage'
+
 /**
  * Spike: a familiard pet standing in a column beside Pi's chat.
  *
@@ -7,15 +20,6 @@ import type { Pose, StageEvent } from './stage'
  * reaches pi-tui internals with no documented contract, so a Pi upgrade can
  * break it; when it does, the chat stays and only the column is lost.
  */
-import { execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
-import { homedir } from 'node:os'
-
-import { join } from 'node:path'
-import process from 'node:process'
-
-import { framesFromSheet, renderHalfBlocks, scaleFrame } from './sheet'
-import { createStage, ROW } from './stage'
 
 const NODE = Symbol.for('@earendil-works/pi-tui/layout-node')
 const MIN_COLUMNS = 100
@@ -23,6 +27,40 @@ const COLUMN_SHARE = 0.38
 const TICK_MS = 50
 const DEMO_STEP_MS = 3000
 const POSES = Object.keys(ROW) as Pose[]
+const FIRST_IMAGE_ID = 0x4A4D00
+const MAX_FRAMES_PER_ROW = 16
+const LAST_IMAGE_ID = FIRST_IMAGE_ID + 11 * MAX_FRAMES_PER_ROW
+const inTmux = Boolean(process.env.TMUX)
+
+function tmuxValue(args: string[]): string {
+  try {
+    return execFileSync('tmux', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+  }
+  catch {
+    return ''
+  }
+}
+
+function detectBackend(): Backend {
+  const termName = inTmux ? tmuxValue(['display', '-p', '#{client_termname}']) : process.env.TERM ?? ''
+  return chooseBackend({
+    requested: process.env.AMADEUS_STAGE_RENDER,
+    inTmux,
+    termName: !inTmux && process.env.GHOSTTY_RESOURCES_DIR ? 'ghostty' : termName,
+    passthrough: inTmux && tmuxValue(['show', '-pv', 'allow-passthrough']) !== 'off' && tmuxValue(['show', '-pv', 'allow-passthrough']) !== '',
+  })
+}
+
+/** Pixel size of a terminal cell, which tmux knows and hides from programs inside it. */
+function cellSize(): { width: number, height: number } {
+  if (inTmux) {
+    const [width, height] = tmuxValue(['display', '-p', '#{window_cell_width} #{window_cell_height}']).split(' ').map(Number)
+    if (width && height)
+      return { width, height }
+  }
+  const cell = getCellDimensions()
+  return { width: cell.widthPx, height: cell.heightPx }
+}
 
 function loadPet(id: string): { name: string, frames: Map<number, Bitmap[]> } {
   const base = process.env.XDG_DATA_HOME || join(homedir(), '.local/share')
@@ -41,7 +79,31 @@ export default function (pi: any) {
   let timers: ReturnType<typeof setInterval>[] = []
   let demo: ReturnType<typeof setTimeout> | undefined
   let lastKey = ''
+  let backend: Backend = 'halfblock'
   const cache = new Map<string, { lines: string[], width: number }>()
+  const uploaded = new Set<number>()
+  const placed = new Set<string>()
+
+  const send = (sequence: string) => tui.terminal.write(inTmux ? wrapForTmux(sequence) : sequence)
+
+  function kittyArt(frame: Bitmap, id: number, width: number, rows: number) {
+    const { cols, rows: height } = fitCells(frame, cellSize(), width, Math.min(rows - 2, MAX_ROWS))
+    if (!uploaded.has(id)) {
+      transmitImage(frame, id).forEach(send)
+      uploaded.add(id)
+    }
+    const placement = `${id}:${cols}:${height}`
+    if (!placed.has(placement)) {
+      send(placeImage(id, cols, height))
+      placed.add(placement)
+    }
+    return { lines: placeholderLines(id, cols, height), width: cols }
+  }
+
+  function halfBlockArt(frame: Bitmap, width: number, rows: number) {
+    const scaled = scaleFrame(frame, (rows - 2) * 2, width)
+    return { lines: renderHalfBlocks(scaled), width: scaled.width }
+  }
 
   const fire = (event: StageEvent) => stage?.on(event, Date.now())
 
@@ -64,12 +126,13 @@ export default function (pi: any) {
       const key = `${row}:${index}:${width}:${rows}`
       let art = cache.get(key)
       if (!art) {
-        const scaled = scaleFrame(list[index]!, (rows - 2) * 2, width)
-        art = { lines: renderHalfBlocks(scaled), width: scaled.width }
+        art = backend === 'kitty'
+          ? kittyArt(list[index]!, FIRST_IMAGE_ID + row * MAX_FRAMES_PER_ROW + index, width, rows)
+          : halfBlockArt(list[index]!, width, rows)
         cache.set(key, art)
       }
       const indent = ' '.repeat(Math.max(0, Math.floor((width - art.width) / 2)))
-      const caption = `${pet.name} · ${stage.pose()}`.slice(0, width)
+      const caption = `${pet.name} · ${stage.pose()} · ${backend}`.slice(0, width)
       const blank = Math.max(0, rows - art.lines.length - 2)
       return [...Array.from({ length: blank }, () => ''), ...art.lines.map(line => indent + line), '', ' '.repeat(Math.max(0, Math.floor((width - caption.length) / 2))) + caption]
     },
@@ -105,6 +168,8 @@ export default function (pi: any) {
     timers = []
     if (demo)
       clearTimeout(demo)
+    if (uploaded.size > 0)
+      send(deleteImages(FIRST_IMAGE_ID, LAST_IMAGE_ID))
   }
 
   pi.on('session_start', async (_event: unknown, ctx: any) => {
@@ -113,6 +178,7 @@ export default function (pi: any) {
     try {
       pet = loadPet(process.env.AMADEUS_STAGE_PET || 'kurisu')
       stage = createStage(new Set(pet.frames.keys()))
+      backend = detectBackend()
     }
     catch (error) {
       ctx.ui.notify(`stage: ${(error as Error).message}`, 'error')
