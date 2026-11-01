@@ -7,11 +7,13 @@ import { homedir } from 'node:os'
 
 import { join } from 'node:path'
 import process from 'node:process'
+import { createAssistantMessageEventStream } from '@earendil-works/pi-ai'
 import { getCellDimensions } from '@earendil-works/pi-tui'
 
 import { parseAmadeusState } from '../../packages/contracts/src/index'
+import { filterAllModels } from './all-models'
 import { chooseBackend, deleteImages, fitCells, MAX_ROWS, placeholderLines, placeImage, transmitImage, wrapForTmux } from './kitty'
-import { registerProviders } from './provider'
+import { registerFakeProvider } from './provider'
 import { framesFromSheet, renderHalfBlocks, scaleFrame } from './sheet'
 import { createStage, ROW } from './stage'
 
@@ -75,7 +77,6 @@ function loadPet(id: string): { name: string, frames: Map<number, Bitmap[]> } {
 }
 
 export default function (pi: any) {
-  const realModel = Boolean(process.env.OPENCODE_API_KEY)
   const logPath = process.env.AMADEUS_STAGE_LOG
   let mood = ''
   let requestAt = 0
@@ -84,7 +85,10 @@ export default function (pi: any) {
       appendFileSync(logPath, `${JSON.stringify({ event, ms: Date.now() - requestAt, ...extra })}\n`)
   }
 
-  registerProviders(pi, {
+  // Only on request: having no credentials, it would otherwise be Pi's default model before any /login.
+  if (process.env.AMADEUS_STAGE_FAKE)
+    registerFakeProvider(pi)
+  const turnHooks = {
     onRequest: () => {
       requestAt = Date.now()
       log('request')
@@ -100,14 +104,12 @@ export default function (pi: any) {
         mood = state.state.mood
       log('turn', { leadingTag: /^\s*<mood>/.test(raw), stateOk: state.ok, mood: state.ok ? state.state.mood : null })
     },
-  }, realModel)
-
-  if (realModel) {
-    const persona = readFileSync(new URL('../../packages/character/src/prompts/kurisu.system.md', import.meta.url), 'utf8')
-    pi.on('before_agent_start', async (event: any) => {
-      event.systemPromptOptions.appendSystemPrompt = `${event.systemPromptOptions.appendSystemPrompt ?? ''}\n\n${persona}`.trim()
-    })
   }
+
+  const persona = readFileSync(new URL('../../packages/character/src/prompts/kurisu.system.md', import.meta.url), 'utf8')
+  pi.on('before_agent_start', async (event: any) => {
+    event.systemPromptOptions.appendSystemPrompt = `${event.systemPromptOptions.appendSystemPrompt ?? ''}\n\n${persona}`.trim()
+  })
 
   let stage: ReturnType<typeof createStage> | undefined
   let pet: ReturnType<typeof loadPet> | undefined
@@ -209,6 +211,8 @@ export default function (pi: any) {
   }
 
   pi.on('session_start', async (_event: unknown, ctx: any) => {
+    if (!filterAllModels(ctx.modelRegistry, turnHooks, createAssistantMessageEventStream as any))
+      ctx.ui.notify('stage: this Pi changed its internals, so state tags will show in the chat', 'error')
     if (!ctx.hasUI)
       return
     try {
