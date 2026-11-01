@@ -18,14 +18,17 @@ function createStream() {
     },
     async* [Symbol.asyncIterator]() {
       for (let next = 0; ;) {
-        if (next < events.length)
+        if (next < events.length) {
           yield events[next++]
-        else if (ended)
+        }
+        else if (ended) {
           return
-        else
+        }
+        else {
           await new Promise<void>((resolve) => {
             wake = resolve
           })
+        }
       }
     },
   }

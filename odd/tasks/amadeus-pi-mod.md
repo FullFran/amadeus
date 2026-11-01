@@ -14,7 +14,7 @@ Branch: feat/pi-mod. Delivery strategy: ask-on-risk. Test runner: vitest (`pnpm 
 
 - [x] T1 (S2, S3, S4) Stage spike in `spikes/vn-stage`: sheet decoding, half-block renderer, pose state machine, column beside the chat. Route: inline, no writer trigger. Commit: dd37416.
 - [x] T2 (S2) Check images through Kitty in Ghostty. Route: inline. Commits: a3d21a6, 66ceab3. Seen working by the user in Ghostty through tmux.
-- [ ] T3 (S1) Hide state tags during streaming with a `streamSimple` wrapper. Route: inline. Commits: 05799fd, then the `/login` rework (see L15). Verified with a scripted model and a local fake server; pending a run on a real model.
+- [ ] T3 (S1) Hide state tags during streaming with a `streamSimple` wrapper. Route: inline. Commits: 05799fd, 068913e (see L15). Verified with a scripted model and a local fake server; pending a run on a real model.
 - [ ] T4 (S1, S6) Launcher with its own home, soul hooks, retire the old TUI. Route: inline. Pending.
 - [ ] T5 (S1) Character pack outside the code. Route: inline. Pending.
 - [ ] T6 (S5) MCP: Notion, then AgentMail with its own mailbox and a send gate. Route: inline. Pending; needs a credential from the user.
