@@ -10,6 +10,43 @@ const COLUMNS = 8
 const CELL_RATIO = 208 / 192
 const PAINTED_ALPHA = 16
 const VISIBLE_ALPHA = 128
+const KEY_MAX_GREEN = 16
+const KEY_MIN_LEVEL = 16
+const KEY_MAX_SKEW = 24
+const OUTLINE_MAX_LEVEL = 96
+
+function isKeyColor(data: Uint8Array, i: number): boolean {
+  const r = data[i]!
+  return data[i + 1]! <= KEY_MAX_GREEN && r >= KEY_MIN_LEVEL && Math.abs(r - data[i + 2]!) <= KEY_MAX_SKEW
+}
+
+/**
+ * Some generated sheets keep a halo of the magenta they were keyed from, even
+ * under fully transparent pixels, and an outline tinted by it. The halo goes
+ * and the outline turns black. Other opaque magenta stays: it can be in the art.
+ */
+export function removeKeyHalo(sheet: Bitmap): Bitmap {
+  const { width, height } = sheet
+  const data = new Uint8Array(sheet.data)
+  const touchesTransparency = (x: number, y: number) =>
+    (x > 0 && data[(y * width + x - 1) * 4 + 3] !== 255)
+    || (x < width - 1 && data[(y * width + x + 1) * 4 + 3] !== 255)
+    || (y > 0 && data[((y - 1) * width + x) * 4 + 3] !== 255)
+    || (y < height - 1 && data[((y + 1) * width + x) * 4 + 3] !== 255)
+
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3]! < 255 && isKeyColor(data, i))
+      data.fill(0, i, i + 4)
+  }
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4
+      if (data[i + 3] === 255 && data[i]! <= OUTLINE_MAX_LEVEL && isKeyColor(data, i) && touchesTransparency(x, y))
+        data.fill(0, i, i + 3)
+    }
+  }
+  return { ...sheet, data }
+}
 
 function isCellPainted(sheet: Bitmap, left: number, top: number, cellW: number, cellH: number): boolean {
   for (let y = top; y < top + cellH; y++) {
@@ -35,7 +72,8 @@ function crop(sheet: Bitmap, left: number, top: number, width: number, height: n
  * shared by the whole sheet, so the character keeps its place between frames
  * and fills the column instead of the sheet's padding.
  */
-export function framesFromSheet(sheet: Bitmap): Map<number, Bitmap[]> {
+export function framesFromSheet(source: Bitmap): Map<number, Bitmap[]> {
+  const sheet = removeKeyHalo(source)
   const cellW = sheet.width / COLUMNS
   const rows = Math.round(sheet.height / (cellW * CELL_RATIO))
   if (rows !== 9 && rows !== 11)

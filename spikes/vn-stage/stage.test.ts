@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { framesFromSheet, renderHalfBlocks, scaleFrame } from './sheet'
+import { framesFromSheet, removeKeyHalo, renderHalfBlocks, scaleFrame } from './sheet'
 import { createStage, FPS } from './stage'
 
 const RED: [number, number, number, number] = [255, 0, 0, 255]
@@ -35,10 +35,80 @@ describe('framesFromSheet', () => {
     expect(() => framesFromSheet(sheet(10, () => RED))).toThrow(/rows/)
   })
 
+  it('removes the key halo from the frames, and from the shared box', () => {
+    const halo: typeof RED = [240, 0, 240, 128]
+    const frames = framesFromSheet(sheet(9, (row, col) => (row === 0 && col === 0 ? RED : halo)))
+    expect(frames.size).toBe(1)
+    expect(frames.get(0)).toHaveLength(1)
+  })
+
   it('crops every frame to one shared box, so the character does not jump between frames', () => {
     const frames = framesFromSheet(sheet(9, (row, col) => (row === 0 && col < 2 ? RED : CLEAR)))
     const [a, b] = frames.get(0)!
     expect([a.width, a.height]).toEqual([b.width, b.height])
+  })
+})
+
+describe('removeKeyHalo', () => {
+  const pixel = (r: number, g: number, b: number, a: number) => [...removeKeyHalo({ width: 1, height: 1, data: new Uint8Array([r, g, b, a]) }).data]
+
+  it('clears partly transparent pixels of the key color, at any brightness', () => {
+    expect(pixel(240, 0, 240, 128)).toEqual([0, 0, 0, 0])
+    expect(pixel(48, 0, 48, 200)).toEqual([0, 0, 0, 0])
+  })
+
+  it('clears the key color hidden under full transparency, which scaling would bleed out', () => {
+    expect(pixel(224, 0, 224, 0)).toEqual([0, 0, 0, 0])
+  })
+
+  it('keeps opaque magenta, which can be part of the art', () => {
+    expect(pixel(240, 0, 240, 255)).toEqual([240, 0, 240, 255])
+  })
+
+  it('keeps partly transparent pixels of other colors', () => {
+    expect(pixel(200, 40, 30, 128)).toEqual([200, 40, 30, 128])
+    expect(pixel(0, 0, 0, 128)).toEqual([0, 0, 0, 128])
+    expect(pixel(120, 90, 200, 128)).toEqual([120, 90, 200, 128])
+  })
+
+  describe('outline tinted by the key', () => {
+    const TINT = [48, 0, 48, 255]
+    const OPAQUE = [200, 200, 200, 255]
+    const NONE = [0, 0, 0, 0]
+    const clean = (width: number, height: number, pixels: number[][]) =>
+      [...removeKeyHalo({ width, height, data: new Uint8Array(pixels.flat()) }).data]
+
+    it('turns dark magenta black where it touches transparency', () => {
+      expect(clean(2, 1, [TINT, NONE]).slice(0, 4)).toEqual([0, 0, 0, 255])
+    })
+
+    it('counts a neighbor above or below too', () => {
+      expect(clean(1, 2, [TINT, NONE]).slice(0, 4)).toEqual([0, 0, 0, 255])
+    })
+
+    it('keeps dark magenta with no transparent neighbor, which is part of the art', () => {
+      const pixels = [OPAQUE, OPAQUE, OPAQUE, OPAQUE, TINT, OPAQUE, OPAQUE, OPAQUE, OPAQUE]
+      expect(clean(3, 3, pixels).slice(16, 20)).toEqual(TINT)
+    })
+
+    it('also counts a partly transparent neighbor', () => {
+      expect(clean(2, 1, [TINT, [0, 0, 0, 128]]).slice(0, 4)).toEqual([0, 0, 0, 255])
+    })
+
+    it('keeps bright magenta on the edge', () => {
+      expect(clean(2, 1, [[240, 0, 240, 255], NONE]).slice(0, 4)).toEqual([240, 0, 240, 255])
+    })
+
+    it('does not wrap around the end of a row to find a neighbor', () => {
+      const pixels = [OPAQUE, TINT, NONE, OPAQUE]
+      expect(clean(2, 2, pixels).slice(4, 8)).toEqual(TINT)
+    })
+  })
+
+  it('does not change the sheet it receives', () => {
+    const data = new Uint8Array([240, 0, 240, 128])
+    removeKeyHalo({ width: 1, height: 1, data })
+    expect([...data]).toEqual([240, 0, 240, 128])
   })
 })
 
