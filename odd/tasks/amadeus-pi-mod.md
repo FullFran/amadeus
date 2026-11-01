@@ -13,7 +13,7 @@ Branch: feat/pi-mod. Delivery strategy: ask-on-risk. Test runner: vitest (`pnpm 
 ## Tasks
 
 - [x] T1 (S2, S3, S4) Stage spike in `spikes/vn-stage`: sheet decoding, half-block renderer, pose state machine, column beside the chat. Route: inline, no writer trigger. Commit: dd37416.
-- [ ] T2 (S2) Check images through Kitty in Ghostty. Route: inline. Commit: a3d21a6. Mechanics verified; pending the user's eyes in Ghostty.
+- [x] T2 (S2) Check images through Kitty in Ghostty. Route: inline. Commits: a3d21a6, 66ceab3. Seen working by the user in Ghostty through tmux.
 - [ ] T3 (S1) Hide state tags during streaming with a `streamSimple` wrapper. Route: inline. Pending.
 - [ ] T4 (S1, S6) Launcher with its own home, soul hooks, retire the old TUI. Route: inline. Pending.
 - [ ] T5 (S1) Character pack outside the code. Route: inline. Pending.
@@ -31,4 +31,6 @@ Branch: feat/pi-mod. Delivery strategy: ask-on-risk. Test runner: vitest (`pnpm 
 - L7 (2026-11-01): open problems for T4. Idle cost is about 5.5% of one core against 0.8% without the stage, and memory 271-491 MB against 123 MB; removing a per-render rescale barely helped CPU, so the cause is not established. Iria's sheet (2765x2059) is rejected because frames are found by grid, while familiard finds them through transparent gaps. Pi also lists ambient skills at startup, which a companion must disable. Not seen by a human yet in a real terminal.
 - L8 (2026-11-01, user): "vale funciona jajajaja hay que mejorar cosas de la vision pero funciona xD se ve pixelada si"
 - L9 (2026-11-01): T2 uses Kitty unicode placeholders. In a private tmux with no outer terminal: the column holds placeholder cells colored with the image id, frames upload once, the turn still walks its poses. Idle measured 2.7% of one core and 237 MB, against 5.5% and 271-491 MB with half-blocks. No image has been seen by anyone yet.
-- Next: the user looks at it in Ghostty with `spikes/vn-stage/run.sh`.
+- L10 (2026-11-01, user): sent a screenshot, "asi se ve". Kitty works through tmux in Ghostty, large and sharp, with a magenta outline.
+- L11 (2026-11-01): the outline is in the sheet: 28162 partly transparent magenta pixels in kurisu, more hidden under transparency, and an outline tinted by it. Removed in 66ceab3, checked on a rendered frame, not yet by the user in Ghostty. Still open for T4: Pi's startup noise (skill list, conflicts, tmux warning) in the chat.
+- Next: T3, if the user agrees; better art is a separate open point.
