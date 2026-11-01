@@ -23,7 +23,7 @@ const NEXT: Record<StageEvent, Pose> = {
   text_delta: 'speaking',
   tool_start: 'tool',
   tool_end: 'thinking',
-  agent_end: 'celebrating',
+  agent_end: 'idle',
   agent_error: 'failed',
 }
 
@@ -48,7 +48,7 @@ export function createStage(availableRows: ReadonlySet<number>) {
     },
 
     tick(now: number): void {
-      if ((current === 'celebrating' || current === 'failed') && now - since >= EPHEMERAL_MS)
+      if (current === 'failed' && now - since >= EPHEMERAL_MS)
         set('idle', now)
     },
 

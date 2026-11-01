@@ -164,7 +164,7 @@ describe('createStage', () => {
     expect(createStage(rows).pose()).toBe('idle')
   })
 
-  it('follows a turn: thinking, tool, speaking, then a short celebration back to idle', () => {
+  it('follows a turn: thinking, tool, speaking, then straight back to idle', () => {
     const stage = createStage(rows)
     stage.on('agent_start', 0)
     expect(stage.pose()).toBe('thinking')
@@ -175,14 +175,18 @@ describe('createStage', () => {
     stage.on('text_delta', 30)
     expect(stage.pose()).toBe('speaking')
     stage.on('agent_end', 40)
-    expect(stage.pose()).toBe('celebrating')
-    stage.tick(40 + 2999)
-    expect(stage.pose()).toBe('celebrating')
-    stage.tick(40 + 3000)
     expect(stage.pose()).toBe('idle')
   })
 
-  it('shows a failed turn instead of celebrating, and then rests', () => {
+  it('still celebrates when forced by hand', () => {
+    const stage = createStage(rows)
+    stage.force('celebrating', 0)
+    expect(stage.pose()).toBe('celebrating')
+    stage.force(undefined, 10)
+    expect(stage.pose()).toBe('idle')
+  })
+
+  it('shows a failed turn, and then rests', () => {
     const stage = createStage(rows)
     stage.on('agent_start', 0)
     stage.on('agent_error', 10)
